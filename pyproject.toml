@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "checkit"
-version = "0.3.0"
+version = "0.3.1"
 description = "Crawl a website, distill every page to LLM-optimized markdown/XML, and audit the content for internal consistency using Mistral, OpenAI or Claude."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -18,8 +18,13 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
-gui = ["pywebview>=4.10"]
-build = ["pyinstaller>=6.0"]
+# pywebview alone needs a native backend (GTK on Linux = system python3-gi,
+# pythonnet on Windows). The gui-qt extra bundles PySide6 (Qt WebEngine),
+# which works on all three desktop OSes without system GUI libraries and
+# is what the self-contained executables ship with.
+gui = ["pywebview>=4.10", "qtpy>=2.4", "PySide6>=6.5"]
+gui-qt = ["pywebview>=4.10", "qtpy>=2.4", "PySide6>=6.5"]
+build = ["pyinstaller>=6.0", "qtpy>=2.4", "PySide6>=6.5"]
 
 [project.scripts]
 checkit = "checkit.cli:main"

@@ -231,8 +231,45 @@ def open_folder(path: str) -> str:
     return target
 
 
-def launch(debug: bool = False) -> None:
-    """Open the checkit GUI window."""
+def check_backend() -> dict:
+    """Probe which GUI backends are available. Returns a status dict.
+
+    Qt is "available" when qtpy can import a Qt binding AND the pywebview Qt
+    platform module imports cleanly (which also validates QtWebEngine).
+    """
+    status = {"qt": False, "gtk": False, "cocoa": False, "winforms": False,
+              "error": None}
+    os.environ.setdefault("QT_API", "pyside6")
+    try:
+        import qtpy  # noqa: F401
+        from qtpy import QtCore  # noqa: F401
+        import webview.platforms.qt  # noqa: F401 — validates QtWebEngine too
+        status["qt"] = True
+    except Exception as exc:
+        status["error"] = f"qtpy/PySide6: {type(exc).__name__}: {exc}"
+    if sys.platform.startswith("linux"):
+        try:
+            import gi  # noqa: F401
+            import webview.platforms.gtk  # noqa: F401
+            status["gtk"] = True
+        except Exception:
+            pass
+    return status
+
+
+def launch(debug: bool = False, force_backend: str = "qt") -> None:
+    """Open the checkit GUI window.
+
+    `force_backend` selects the pywebview backend. We default to 'qt' because
+    the bundled executables ship PySide6 (Qt WebEngine), which works on all
+    three desktop OSes without system GUI libraries. GTK requires system
+    `python3-gi` and is only a fallback.
+    """
+    # Pin qtpy to PySide6 before anything imports qtpy. qtpy otherwise
+    # defaults to pyqt5 and silently reports "no bindings" when PyQt5 is
+    # absent even if PySide6 is installed.
+    os.environ.setdefault("QT_API", "pyside6")
+
     import webview
 
     bridge = GuiBridge()
@@ -244,8 +281,20 @@ def launch(debug: bool = False) -> None:
         height=760,
         min_size=(900, 600),
         text_select=True,
+        js_api=bridge,  # exposes window.pywebview.api.* to the frontend
     )
-    webview.start(debug=debug)
+    try:
+        webview.start(gui=force_backend, debug=debug)
+    except Exception as exc:
+        status = check_backend()
+        raise RuntimeError(
+            f"Could not start the GUI ({exc}).\n"
+            f"Backend availability: Qt={status['qt']}, GTK={status['gtk']}.\n"
+            "The bundled app ships PySide6 (Qt). If Qt failed to load, the "
+            "system may be missing GUI libraries (e.g. libglib, libGL, "
+            "libxkbcommon on Linux). Install them or run the CLI instead: "
+            "checkit run <url>"
+        ) from exc
 
 
 def main(argv=None) -> int:
@@ -255,8 +304,19 @@ def main(argv=None) -> int:
                                      description="checkit desktop application")
     parser.add_argument("--debug", action="store_true",
                         help="Open developer tools on start.")
+    parser.add_argument("--backend", default="qt",
+                        choices=("qt", "gtk", "cocoa", "winforms"),
+                        help="GUI backend (default: qt — bundled with the app).")
+    parser.add_argument("--check-backend", action="store_true",
+                        help="Print available GUI backends and exit.")
     args = parser.parse_args(argv)
-    launch(debug=args.debug)
+
+    if args.check_backend:
+        import json
+        print(json.dumps(check_backend(), indent=2))
+        return 0 if check_backend()["qt"] or check_backend()["gtk"] else 1
+
+    launch(debug=args.debug, force_backend=args.backend)
     return 0
 
 

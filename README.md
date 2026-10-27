@@ -19,21 +19,44 @@ Grab a **self-contained executable** for your OS from the
 | Windows | `checkit-windows-x64.zip` | extract, double-click `checkit.exe` |
 | macOS | `checkit-macos.zip` | extract, double-click `checkit.app` |
 
-The app bundles Python and all dependencies — nothing to install. The GUI
-lets you enter a URL, configure the crawl and LLM provider, watch live
-progress, cancel, and read the rendered report.
+The app bundles Python, all Python dependencies, **and the Qt WebEngine GUI
+runtime (PySide6)** — no Python, Qt, GTK, or other GUI libraries to install.
+The GUI lets you enter a URL, configure the crawl and LLM provider, watch
+live progress, cancel, and read the rendered report.
+
+> **Linux note:** even though Qt itself is bundled, Qt WebEngine links against
+> a few *system* libraries. On a minimal/headless Linux system you may need:
+> ```bash
+> sudo apt install libglib2.0-0 libgl1 libegl1 libxkbcommon0 libdbus-1-3 \
+>     libfontconfig1 libnss3 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2
+> ```
+> (Debian/Ubuntu names; equivalent packages on other distros.) Desktop
+> distros already have these. To diagnose GUI backend problems, run:
+> ```bash
+> ./checkit --check-backend    # prints which backends are usable
+> ./checkit --backend gtk      # force a different backend (qt is default)
+> ```
+> If the GUI cannot start, the app prints the reason and you can always fall
+> back to the CLI: `./checkit run <url>` (the executable includes the CLI).
 
 ## Install from source / PyPI
 
 ```bash
-pip install .            # CLI + GUI (pywebview)
+pip install .            # CLI + GUI (pywebview + PySide6/Qt)
 checkit-gui              # launch the desktop app
 # or without installing:
 python -m checkit.gui    # GUI
 python -m checkit --help # CLI
 ```
 
-Requires Python 3.9+. Runtime dependencies: `requests`, `beautifulsoup4`, `pywebview`.
+Requires Python 3.9+. Runtime dependencies: `requests`, `beautifulsoup4`,
+`pywebview`, plus `qtpy` and `PySide6` for the GUI (the `gui` extra). Use
+`pip install ".[gui]"` to pull in the Qt runtime explicitly.
+
+```bash
+checkit-gui --check-backend   # diagnose which GUI backends are available
+checkit-gui --backend qt      # force the Qt backend (default)
+```
 
 ## Settings & API keys (persistent)
 
