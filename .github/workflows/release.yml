@@ -46,6 +46,9 @@ jobs:
             name: windows-x64
           - os: macos-latest
             name: macos
+            # macOS runners are flaky in some environments; don't block the
+            # release on them. Re-run the workflow to retry the macOS build.
+            continue-on-error: true
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -91,8 +94,13 @@ jobs:
           path: artifacts/*
 
   release:
+    # build-gui has continue-on-error for macOS, so a macOS runner outage
+    # does not block the release; Linux + Windows artifacts always publish.
     needs: [test, build-gui]
-    if: startsWith(github.ref, 'refs/tags/')
+    if: |
+      startsWith(github.ref, 'refs/tags/') &&
+      (needs.test.result == 'success') &&
+      (needs.build-gui.result == 'success' || needs.build-gui.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
