@@ -42,10 +42,13 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x64
+            key: linux
           - os: windows-latest
             name: windows-x64
+            key: windows
           - os: macos-latest
             name: macos
+            key: macos
             # macOS runners are flaky in some environments; don't block the
             # release on them. Re-run the workflow to retry the macOS build.
             continue-on-error: true
@@ -88,19 +91,32 @@ jobs:
           ls -la artifacts/
 
       - name: Upload GUI artifact
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: checkit-gui-${{ matrix.name }}
           path: artifacts/*
 
+      - name: Set matrix output
+        id: result
+        shell: bash
+        run: echo "result=success" >> "$GITHUB_OUTPUT"
+
+    outputs:
+      linux: ${{ matrix.key == 'linux' && steps.result.outputs.result || 'skipped' }}
+      windows: ${{ matrix.key == 'windows' && steps.result.outputs.result || 'skipped' }}
+      macos: ${{ matrix.key == 'macos' && steps.result.outputs.result || 'skipped' }}
+
   release:
-    # build-gui has continue-on-error for macOS, so a macOS runner outage
-    # does not block the release; Linux + Windows artifacts always publish.
+    # build-gui has continue-on-error for macOS; a macOS runner outage must
+    # not block the release. The `if` checks the individual matrix results:
+    # test must pass and the Linux + Windows builds must succeed.
     needs: [test, build-gui]
     if: |
       startsWith(github.ref, 'refs/tags/') &&
-      (needs.test.result == 'success') &&
-      (needs.build-gui.result == 'success' || needs.build-gui.result == 'skipped')
+      needs.test.result == 'success' &&
+      needs.build-gui.outputs.linux == 'success' &&
+      needs.build-gui.outputs.windows == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
