@@ -75,7 +75,7 @@ if sys.platform == "darwin":
         info_plist={
             "CFBundleName": "checkit",
             "CFBundleDisplayName": "checkit",
-            "CFBundleShortVersionString": "0.1.0",
+            "CFBundleShortVersionString": "0.3.0",
             "NSHighResolutionCapable": True,
         },
     )

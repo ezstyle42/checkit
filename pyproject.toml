@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "checkit"
-version = "0.1.0"
+version = "0.3.0"
 description = "Crawl a website, distill every page to LLM-optimized markdown/XML, and audit the content for internal consistency using Mistral, OpenAI or Claude."
 readme = "README.md"
 requires-python = ">=3.9"
