@@ -16,37 +16,54 @@
     background: var(--bg); color: var(--text); font-size: 14px;
   }
   header {
-    padding: 14px 22px; border-bottom: 1px solid var(--border);
+    padding: 12px 22px; border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 10px;
   }
   header .logo { font-size: 18px; font-weight: 700; color: var(--accent); }
   header .sub { color: var(--muted); font-size: 12px; }
-  main { display: grid; grid-template-columns: 380px 1fr; gap: 0; height: calc(100vh - 53px); }
-  .form { padding: 18px; border-right: 1px solid var(--border); overflow-y: auto; background: var(--panel); }
-  .out { display: flex; flex-direction: column; background: var(--bg); }
-  label { display: block; margin: 12px 0 4px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  header .ver { margin-left: auto; color: var(--muted); font-size: 11px; }
+  main { display: grid; grid-template-columns: 400px 1fr; gap: 0; height: calc(100vh - 49px); }
+  .form { padding: 16px; border-right: 1px solid var(--border); overflow-y: auto; background: var(--panel); }
+  .out { display: flex; flex-direction: column; background: var(--bg); min-width: 0; }
+  label { display: block; margin: 11px 0 4px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
   input[type=text], input[type=password], input[type=number], select {
     width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
     background: var(--panel2); color: var(--text); font-size: 14px;
   }
   input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input:disabled, select:disabled { opacity: .55; }
   .row { display: flex; gap: 10px; }
   .row > div { flex: 1; }
   button {
-    margin-top: 16px; width: 100%; padding: 10px; border: 0; border-radius: 6px;
+    margin-top: 14px; width: 100%; padding: 10px; border: 0; border-radius: 6px;
     background: var(--accent); color: #06121f; font-weight: 700; font-size: 14px; cursor: pointer;
   }
   button.secondary { background: var(--panel2); color: var(--text); border: 1px solid var(--border); margin-top: 8px; }
   button:disabled { opacity: .5; cursor: default; }
   button.danger { background: var(--err); color: #fff; }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row button { margin-top: 14px; }
   .hint { color: var(--muted); font-size: 11px; margin-top: 4px; }
-  .status { margin-top: 14px; padding: 10px; border-radius: 6px; font-size: 12px; display: none; }
+  .status { margin-top: 12px; padding: 9px 10px; border-radius: 6px; font-size: 12px; display: none; word-break: break-word; }
   .status.info { display: block; background: #12283f; color: var(--accent); }
   .status.ok { display: block; background: #12291a; color: var(--ok); }
   .status.err { display: block; background: #2d1517; color: var(--err); }
-  .log { flex: 1; overflow-y: auto; padding: 14px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: pre-wrap; }
-  .log .line { margin-bottom: 3px; }
-  .log .muted { color: var(--muted); }
+  .log {
+    flex: 1; overflow-y: auto; padding: 12px 16px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px; white-space: pre-wrap; word-break: break-word;
+  }
+  .log .line { margin-bottom: 2px; display: flex; gap: 8px; }
+  .log .ts { color: #5a6a7d; flex-shrink: 0; user-select: none; }
+  .log .msg.debug { color: var(--muted); }
+  .log .msg.info { color: var(--text); }
+  .log .msg.warning { color: var(--warn); }
+  .log .msg.error { color: var(--err); }
+  .log .badge { flex-shrink: 0; font-size: 10px; padding: 0 6px; border-radius: 8px; height: fit-content; margin-top: 1px; user-select: none; }
+  .log .badge.debug { background: #222d3d; color: var(--muted); }
+  .log .badge.info { background: #12283f; color: var(--accent); }
+  .log .badge.warning { background: #2d2410; color: var(--warn); }
+  .log .badge.error { background: #2d1517; color: var(--err); }
   .report { flex: 1; overflow-y: auto; padding: 18px 22px; display: none; }
   .report.visible { display: block; }
   .report h1 { font-size: 18px; }
@@ -55,24 +72,31 @@
   .report table { border-collapse: collapse; width: 100%; font-size: 12px; }
   .report th, .report td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
   .report th { background: var(--panel); }
-  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
-  .badge.high { background: #2d1517; color: var(--err); }
-  .badge.medium { background: #2d2410; color: var(--warn); }
-  .badge.low { background: #12283f; color: var(--accent); }
-  .tabs { display: flex; gap: 4px; padding: 8px 18px 0; border-bottom: 1px solid var(--border); }
+  .report code { background: var(--panel2); padding: 1px 5px; border-radius: 4px; }
+  .report a { color: var(--accent); }
+  .badge-sev { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+  .badge-sev.high { background: #2d1517; color: var(--err); }
+  .badge-sev.medium { background: #2d2410; color: var(--warn); }
+  .badge-sev.low { background: #12283f; color: var(--accent); }
+  .tabs { display: flex; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid var(--border); align-items: center; }
   .tabs button { width: auto; margin: 0; padding: 8px 16px; border-radius: 6px 6px 0 0; background: transparent; color: var(--muted); font-weight: 600; }
   .tabs button.active { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-bottom: 0; }
+  .tabs .spacer { flex: 1; }
+  .tabs .autoscroll { color: var(--muted); font-size: 11px; display: flex; align-items: center; gap: 5px; cursor: pointer; }
   .progress { height: 4px; background: var(--panel2); }
-  .progress > div { height: 100%; width: 0%; background: var(--accent); transition: width .2s; }
-  .checkbox { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .progress > div { height: 100%; width: 0%; background: var(--accent); transition: width .25s; }
+  .checkbox { display: flex; align-items: center; gap: 8px; margin-top: 11px; }
   .checkbox input { width: auto; }
-  .checkbox span { color: var(--muted); font-size: 13px; }
+  .checkbox span { color: var(--muted); font-size: 13px; text-transform: none; letter-spacing: 0; }
+  fieldset { border: 1px solid var(--border); border-radius: 8px; margin: 14px 0 0; padding: 10px 12px 4px; }
+  fieldset legend { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; padding: 0 6px; }
 </style>
 </head>
 <body>
 <header>
   <span class="logo">checkit</span>
   <span class="sub">website crawler &amp; consistency checker</span>
+  <span class="ver" id="version"></span>
 </header>
 <main>
   <div class="form">
@@ -93,11 +117,21 @@
       </div>
     </div>
 
-    <label for="format">Distilled format</label>
-    <select id="format">
-      <option value="markdown" selected>Markdown (.md)</option>
-      <option value="xml">XML (.xml)</option>
-    </select>
+    <div class="row">
+      <div>
+        <label for="format">Distilled format</label>
+        <select id="format">
+          <option value="markdown" selected>Markdown (.md)</option>
+          <option value="xml">XML (.xml)</option>
+        </select>
+      </div>
+      <div style="display:flex; align-items:flex-end; padding-bottom: 8px;">
+        <div class="checkbox" style="margin:0;">
+          <input id="verbose" type="checkbox" checked>
+          <span>Verbose log</span>
+        </div>
+      </div>
+    </div>
 
     <div class="checkbox">
       <input id="use-llm" type="checkbox" checked>
@@ -115,14 +149,24 @@
       <label for="model">Model (optional)</label>
       <input id="model" type="text" placeholder="default per provider">
 
-      <label for="api-key">API key</label>
-      <input id="api-key" type="password" placeholder="or set env var / checkit.env">
-      <div class="hint">MISTRAL_API_KEY · OPENAI_API_KEY · ANTHROPIC_API_KEY</div>
+      <fieldset>
+        <legend>API keys (saved locally)</legend>
+        <label for="key-mistral">Mistral API key</label>
+        <input id="key-mistral" type="password" autocomplete="off" placeholder="sk-…">
+        <label for="key-openai">OpenAI API key</label>
+        <input id="key-openai" type="password" autocomplete="off" placeholder="sk-…">
+        <label for="key-claude">Claude (Anthropic) API key</label>
+        <input id="key-claude" type="password" autocomplete="off" placeholder="sk-ant-…">
+        <div class="hint">Keys are stored in your user config folder with 0600 permissions. Leave blank to keep the saved key. Env vars and checkit.env are also honoured.</div>
+      </fieldset>
     </div>
 
-    <button id="run">Run</button>
-    <button id="stop" class="danger secondary" disabled>Stop</button>
-    <button id="open-out" class="secondary" disabled>Open output folder</button>
+    <div class="btn-row">
+      <button id="run">▶ Run</button>
+      <button id="stop" class="danger" disabled>■ Stop</button>
+    </div>
+    <button id="save" class="secondary">💾 Save settings</button>
+    <button id="open-out" class="secondary" disabled>📂 Open output folder</button>
 
     <div id="status" class="status"></div>
   </div>
@@ -131,6 +175,8 @@
     <div class="tabs">
       <button id="tab-log" class="active">Log</button>
       <button id="tab-report">Report</button>
+      <span class="spacer"></span>
+      <label class="autoscroll"><input id="autoscroll" type="checkbox" checked> auto-scroll</label>
     </div>
     <div class="progress"><div id="progress-bar"></div></div>
     <div id="log" class="log"></div>
@@ -144,19 +190,32 @@
   var $ = function (id) { return document.getElementById(id); };
   var logEl = $("log"), reportEl = $("report"), statusEl = $("status");
   var progressBar = $("progress-bar");
-  var running = false;
+  var INPUT_IDS = ["url", "out", "max-pages", "delay", "format", "provider",
+                   "model", "use-llm", "verbose", "key-mistral", "key-openai", "key-claude"];
 
   function setStatus(msg, kind) {
     statusEl.textContent = msg;
     statusEl.className = "status " + kind;
   }
 
-  function addLog(msg, cls) {
+  function now() {
+    var d = new Date();
+    return d.toTimeString().slice(0, 8);
+  }
+
+  function addLog(level, msg, percent) {
     var div = document.createElement("div");
-    div.className = "line" + (cls ? " " + cls : "");
-    div.textContent = msg;
+    div.className = "line";
+    var ts = document.createElement("span");
+    ts.className = "ts"; ts.textContent = now();
+    var badge = document.createElement("span");
+    badge.className = "badge " + level; badge.textContent = level.toUpperCase();
+    var text = document.createElement("span");
+    text.className = "msg " + level;
+    text.textContent = (percent != null ? "[" + String(percent).padStart(3) + "%] " : "") + msg;
+    div.appendChild(ts); div.appendChild(badge); div.appendChild(text);
     logEl.appendChild(div);
-    logEl.scrollTop = logEl.scrollHeight;
+    if ($("autoscroll").checked) logEl.scrollTop = logEl.scrollHeight;
   }
 
   function escapeHtml(s) {
@@ -168,9 +227,9 @@
   // Minimal markdown -> HTML renderer for the report.
   function renderMarkdown(md) {
     var html = "", lines = md.split("\n"), i, line;
-    var inTable = false, inList = false;
+    var inTable = false, inList = false, inHead = false;
     function closeBlocks() {
-      if (inTable) { html += "</table>"; inTable = false; }
+      if (inTable) { html += inHead ? "</tbody></table>" : "</table>"; inTable = false; inHead = false; }
       if (inList) { html += "</ul>"; inList = false; }
     }
     function inline(s) {
@@ -185,22 +244,29 @@
         if (!inTable) { html += "<table>"; inTable = true; }
         var cells = line.split("|").slice(1, -1).map(function (c) { return c.trim(); });
         if (/^[-\s:]+$/.test(cells.join(""))) continue;
-        var tag = (i > 0 && lines[i - 1].startsWith("|") && html.indexOf("<thead>") === -1) ? "th" : "td";
-        if (tag === "th" && html.indexOf("<thead>") === -1) html = html.replace("<table>", "<table><thead><tr>");
-        html += "<tr>" + cells.map(function (c) { return "<" + tag + ">" + inline(c) + "</" + tag + ">"; }).join("") + "</tr>";
-        if (tag === "th") html += "</thead><tbody>";
+        if (!inHead && i > 0 && lines[i - 1].startsWith("|")) {
+          html += "<thead><tr>" + cells.map(function (c) { return "<th>" + inline(c) + "</th>"; }).join("") + "</tr></thead><tbody>";
+          inHead = true;
+          continue;
+        }
+        html += "<tr>" + cells.map(function (c) { return "<td>" + inline(c) + "</td>"; }).join("") + "</tr>";
         continue;
       }
       closeBlocks();
-      if (line.startsWith("### ")) html += "<h3>" + inline(line.slice(4)) + "</h3>";
+      if (line.startsWith("### ")) {
+        var m = line.match(/^### \d+\.\s*\[(HIGH|MEDIUM|LOW)\]\s*(.*)$/i);
+        if (m) {
+          html += '<h3><span class="badge-sev ' + m[1].toLowerCase() + '">' + m[1] + "</span> " + inline(m[2]) + "</h3>";
+        } else {
+          html += "<h3>" + inline(line.slice(4)) + "</h3>";
+        }
+      }
       else if (line.startsWith("## ")) html += "<h2>" + inline(line.slice(3)) + "</h2>";
       else if (line.startsWith("# ")) html += "<h1>" + inline(line.slice(2)) + "</h1>";
       else if (line.startsWith("- ")) { if (!inList) { html += "<ul>"; inList = true; } html += "<li>" + inline(line.slice(2)) + "</li>"; }
-      else if (line.trim() === "") { /* skip */ }
-      else html += "<p>" + inline(line) + "</p>";
+      else if (line.trim() !== "") html += "<p>" + inline(line) + "</p>";
     }
     closeBlocks();
-    if (inTable) html = html.replace("</table>", "</tbody></table>");
     return html;
   }
 
@@ -218,15 +284,15 @@
   });
 
   function setRunning(on) {
-    running = on;
     $("run").disabled = on;
     $("stop").disabled = !on;
-    ["url", "out", "max-pages", "delay", "format", "provider", "model", "api-key", "use-llm"]
-      .forEach(function (id) { $(id).disabled = on; });
-    progressBar.style.width = on ? "30%" : "0%";
+    $("save").disabled = on;
+    INPUT_IDS.forEach(function (id) { $(id).disabled = on; });
+    progressBar.style.width = on ? "5%" : "0%";
   }
 
   function readConfig() {
+    var provider = $("provider").value;
     return {
       url: $("url").value.trim(),
       out: $("out").value.trim() || "checkit-out",
@@ -234,10 +300,33 @@
       delay: parseFloat($("delay").value) || 1.0,
       fmt: $("format").value,
       use_llm: $("use-llm").checked,
-      provider: $("provider").value,
+      verbose: $("verbose").checked,
+      provider: provider,
       model: $("model").value.trim() || null,
-      api_key: $("api-key").value.trim() || null
+      api_key: $("key-" + provider).value.trim() || null
     };
+  }
+
+  function applySettings(s) {
+    if (!s) return;
+    if (s.url) $("url").value = s.url;
+    if (s.out_dir) $("out").value = s.out_dir;
+    if (s.max_pages) $("max-pages").value = s.max_pages;
+    if (s.delay != null) $("delay").value = s.delay;
+    if (s.fmt) $("format").value = s.fmt;
+    if (s.use_llm != null) { $("use-llm").checked = s.use_llm; $("llm-fields").style.display = s.use_llm ? "block" : "none"; }
+    if (s.provider) $("provider").value = s.provider;
+    if (s.model) $("model").value = s.model;
+    if (s.verbose != null) $("verbose").checked = s.verbose;
+    var keys = s.api_keys || {};
+    ["mistral", "openai", "claude"].forEach(function (p) {
+      var k = keys[p];
+      if (k) {
+        $("key-" + p).value = "";
+        $("key-" + p).placeholder = "saved: " + k;
+      }
+    });
+    if (s.settings_path) addLog("info", "Settings loaded from " + s.settings_path);
   }
 
   function isReady() {
@@ -250,61 +339,92 @@
     if (!cfg.url) { setStatus("Please enter a website URL.", "err"); return; }
     setRunning(true);
     setStatus("Running…", "info");
-    addLog("▶ checkit run " + cfg.url, "muted");
+    logEl.innerHTML = "";
+    addLog("info", "▶ checkit run " + cfg.url + (cfg.verbose ? " (verbose)" : ""));
     window.pywebview.api.run(cfg).then(function (res) {
       setRunning(false);
       if (res.error) {
         setStatus("Error: " + res.error, "err");
-        addLog("✖ " + res.error, "");
+        addLog("error", res.error);
         return;
       }
       setStatus("Done — report: " + res.report_path, "ok");
-      addLog("✔ Done. Pages: " + res.pages + ", findings: " + res.findings, "");
+      addLog("info", "✔ Done. Pages: " + res.pages + ", findings: " + res.findings +
+             ", overall: " + (res.overall_ok ? "PASS" : "ISSUES FOUND"));
       $("open-out").disabled = false;
       if (res.report_md) {
         reportEl.innerHTML = renderMarkdown(res.report_md);
-        // Colour the severity headings.
-        reportEl.querySelectorAll("h3").forEach(function (h) {
-          var m = h.textContent.match(/\[(HIGH|MEDIUM|LOW)\]/i);
-          if (m) {
-            var b = document.createElement("span");
-            b.className = "badge " + m[1].toLowerCase();
-            b.textContent = m[1];
-            h.innerHTML = "";
-            h.appendChild(b);
-            h.appendChild(document.createTextNode(h.textContent.replace(/\s*\[.*?\]\s*/, " ").trimStart().length ? " " + h.dataset.rest : ""));
-          }
-        });
         showTab("report");
       }
       progressBar.style.width = "100%";
     }).catch(function (err) {
       setRunning(false);
       setStatus("Error: " + err, "err");
-      addLog("✖ " + err, "");
+      addLog("error", String(err));
     });
   });
 
   $("stop").addEventListener("click", function () {
     if (isReady()) window.pywebview.api.cancel();
-    addLog("■ stop requested…", "muted");
+    addLog("warning", "■ stop requested — finishing current step…");
+  });
+
+  $("save").addEventListener("click", function () {
+    if (!isReady()) return;
+    var provider = $("provider").value;
+    var data = {
+      url: $("url").value.trim(),
+      out_dir: $("out").value.trim() || "checkit-out",
+      max_pages: parseInt($("max-pages").value, 10) || 100,
+      delay: parseFloat($("delay").value) || 1.0,
+      fmt: $("format").value,
+      use_llm: $("use-llm").checked,
+      verbose: $("verbose").checked,
+      provider: provider,
+      model: $("model").value.trim(),
+      api_keys: {
+        mistral: $("key-mistral").value.trim(),
+        openai: $("key-openai").value.trim(),
+        claude: $("key-claude").value.trim()
+      }
+    };
+    window.pywebview.api.save_settings(data).then(function (res) {
+      if (res.saved) {
+        setStatus("Settings saved to " + res.path, "ok");
+        addLog("info", "💾 Settings saved to " + res.path);
+        ["mistral", "openai", "claude"].forEach(function (p) {
+          if (data.api_keys[p]) $("key-" + p).placeholder = "saved: ••••" + data.api_keys[p].slice(-4);
+          $("key-" + p).value = "";
+        });
+      } else {
+        setStatus("Failed to save settings.", "err");
+      }
+    });
   });
 
   $("open-out").addEventListener("click", function () {
     if (isReady()) window.pywebview.api.open_folder(readConfig().out);
   });
 
-  // Poll for backend progress events.
+  // Poll for backend log/progress events.
   setInterval(function () {
     if (!isReady()) return;
     window.pywebview.api.poll_events().then(function (events) {
       (events || []).forEach(function (ev) {
-        if (ev.type === "log") addLog(ev.message, ev.level === "error" ? "" : "muted");
-        else if (ev.type === "progress") progressBar.style.width = ev.percent + "%";
-        else if (ev.type === "done") { /* handled by run() promise */ }
+        if (ev.type === "log") addLog(ev.level || "info", ev.message, ev.percent);
+        else if (ev.type === "progress") {
+          addLog("info", ev.message, ev.percent);
+          progressBar.style.width = ev.percent + "%";
+        }
       });
     }).catch(function () {});
-  }, 400);
+  }, 250);
+
+  // Boot: load version + saved settings.
+  if (isReady()) {
+    window.pywebview.api.version().then(function (v) { $("version").textContent = "v" + v; });
+    window.pywebview.api.load_settings().then(applySettings);
+  }
 
   setStatus("Ready.", "info");
 })();

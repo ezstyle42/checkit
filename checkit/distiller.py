@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup, NavigableString, Tag
 
+from .logging_util import Logger
+
 VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input",
              "link", "meta", "param", "source", "track", "wbr"}
 
@@ -39,18 +41,13 @@ def slugify_url(url: str) -> str:
     return f"{slug[:120]}__{digest}"
 
 
-def _visible_text(tag: Tag) -> str:
-    parts = []
-    for node in tag.descendants:
-        if isinstance(node, NavigableString):
-            parts.append(str(node))
-    return re.sub(r"\s+", " ", " ".join(parts)).strip()
-
-
-def html_to_markdown(html: str, url: str = "") -> tuple:
+def html_to_markdown(html: str, url: str = "", logger: Logger | None = None) -> tuple:
     """Convert HTML to (title, markdown). Compact, LLM-friendly output."""
+    log = logger or Logger()
     soup = BeautifulSoup(html, "html.parser")
+    dropped = 0
     for tag in soup.find_all(list(DROP_TAGS)):
+        dropped += 1
         tag.decompose()
 
     title_tag = soup.find("title")
@@ -150,6 +147,12 @@ def html_to_markdown(html: str, url: str = "") -> tuple:
 
     markdown = "\n".join(lines)
     markdown = re.sub(r"\n{3,}", "\n\n", markdown).strip() + "\n"
+    words = len(markdown.split())
+    log.debug(
+        f"Distilled {url or '(no url)'}: title={title!r}, dropped {dropped} "
+        f"boilerplate tags, {len(html)} bytes HTML -> {len(markdown)} bytes "
+        f"markdown (~{words} words)"
+    )
     return title, markdown
 
 
@@ -169,14 +172,16 @@ def markdown_to_xml(title: str, url: str, markdown: str) -> str:
     )
 
 
-def distill_page(html: str, url: str) -> DistilledPage:
-    title, markdown = html_to_markdown(html, url)
+def distill_page(html: str, url: str, logger: Logger | None = None) -> DistilledPage:
+    title, markdown = html_to_markdown(html, url, logger)
     xml = markdown_to_xml(title, url, markdown)
     return DistilledPage(url=url, title=title, markdown=markdown, xml=xml)
 
 
-def write_pages(pages, out_dir, fmt: str = "markdown") -> list:
+def write_pages(pages, out_dir, fmt: str = "markdown",
+                logger: Logger | None = None) -> list:
     """Write one file per page. Returns list of written file paths."""
+    log = logger or Logger()
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     ext = ".md" if fmt == "markdown" else ".xml"
@@ -186,10 +191,12 @@ def write_pages(pages, out_dir, fmt: str = "markdown") -> list:
         path.write_text(page.markdown if fmt == "markdown" else page.xml,
                         encoding="utf-8")
         written.append(path)
+        log.debug(f"Wrote {path.name} ({path.stat().st_size} bytes) for {page.url}")
     index = out / "index.md"
     lines = ["# Crawled pages", ""]
     for page in pages:
         lines.append(f"- [{page.title or page.url}]({slugify_url(page.url)}{ext}) — {page.url}")
     index.write_text("\n".join(lines) + "\n", encoding="utf-8")
     written.append(index)
+    log.info(f"Wrote {len(written)} files to {out} ({fmt} format).")
     return written

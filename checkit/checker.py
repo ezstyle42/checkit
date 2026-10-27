@@ -18,6 +18,7 @@ from difflib import SequenceMatcher
 
 from .distiller import DistilledPage
 from .llm import LLMClient
+from .logging_util import Logger
 
 MONTHS = {
     "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
@@ -169,20 +170,20 @@ def extract_dates(markdown: str, url: str) -> list:
     return mentions
 
 
-def check_date_consistency(date_mentions: list) -> list:
+def check_date_consistency(date_mentions: list, logger: Logger | None = None) -> list:
     """Heuristic deterministic date check.
 
     Flags when the exact same raw date string maps to different ISO dates
-    (ambiguous formats like 03/04/2024) and when a page's stated founding /
-    launch date appears to postdate content dated earlier on another page.
+    (ambiguous formats like 03/04/2024).
     """
+    log = logger or Logger()
     findings = []
     by_raw: dict = {}
     for m in date_mentions:
         by_raw.setdefault(m.raw.lower(), set()).add(m.iso)
     for raw, isos in by_raw.items():
         if len(isos) > 1:
-            findings.append(Finding(
+            finding = Finding(
                 severity="medium",
                 kind="date_mismatch",
                 pages=sorted({m.url for m in date_mentions
@@ -192,19 +193,23 @@ def check_date_consistency(date_mentions: list) -> list:
                     f"dates depending on format: {sorted(isos)}. Use unambiguous "
                     "dates (e.g. ISO 8601) everywhere."
                 ),
-            ))
+            )
+            findings.append(finding)
+            log.warning(f"Date ambiguity: {finding.description}")
     return findings
 
 
-def find_duplicate_content(pages: list, threshold: float = 0.9) -> list:
+def find_duplicate_content(pages: list, threshold: float = 0.9,
+                           logger: Logger | None = None) -> list:
     """Flag pages whose distilled content is near-identical to another page."""
+    log = logger or Logger()
     findings = []
     texts = [p.markdown for p in pages]
     for i in range(len(pages)):
         for j in range(i + 1, len(pages)):
             ratio = SequenceMatcher(None, texts[i], texts[j]).ratio()
             if ratio >= threshold:
-                findings.append(Finding(
+                finding = Finding(
                     severity="low",
                     kind="factual_error",
                     pages=[pages[i].url, pages[j].url],
@@ -212,7 +217,10 @@ def find_duplicate_content(pages: list, threshold: float = 0.9) -> list:
                         f"Pages are {ratio:.0%} identical. Possible duplicated "
                         "or boilerplate content; verify both pages are correct."
                     ),
-                ))
+                )
+                findings.append(finding)
+                log.warning(f"Near-duplicate pages ({ratio:.0%}): "
+                            f"{pages[i].url} <-> {pages[j].url}")
     return findings
 
 
@@ -230,24 +238,37 @@ def _parse_json_array(text: str) -> list:
         return []
 
 
-def extract_claims(client: LLMClient, page: DistilledPage) -> list:
+def extract_claims(client: LLMClient, page: DistilledPage,
+                   logger: Logger | None = None) -> list:
     """Ask the LLM to extract checkable claims from one page."""
+    log = logger or Logger()
+    log.debug(f"LLM claim extraction: {page.url} "
+              f"({len(page.markdown)} chars of markdown)")
     user = f"Page URL: {page.url}\nPage title: {page.title}\n\n{page.markdown}"
     response = client.complete(CLAIM_EXTRACTION_SYSTEM, user)
     claims = _parse_json_array(response.text)
     for c in claims:
         if isinstance(c, dict):
             c.setdefault("page", page.url)
+    log.debug(f"  -> {len(claims)} claims extracted from {page.url}")
     return claims
 
 
-def cross_check_claims(client: LLMClient, claims_by_page: dict) -> list:
+def cross_check_claims(client: LLMClient, claims_by_page: dict,
+                       logger: Logger | None = None) -> list:
     """Ask the LLM to find inconsistencies across pages' claims."""
+    log = logger or Logger()
     payload = {
         url: claims for url, claims in claims_by_page.items() if claims
     }
     if not payload:
+        log.info("No claims to cross-check.")
         return []
+    total_claims = sum(len(v) for v in payload.values())
+    provider = getattr(client, "provider", "llm")
+    model = getattr(client, "model", "default")
+    log.info(f"Cross-checking {total_claims} claims from {len(payload)} pages "
+             f"with {provider} ({model})…")
     user = (
         "Claims grouped by page URL (JSON). Find internal inconsistencies, "
         "contradictions and date/number mismatches:\n\n"
@@ -265,14 +286,29 @@ def cross_check_claims(client: LLMClient, claims_by_page: dict) -> list:
             description=str(item.get("description", "")),
             evidence=str(item.get("evidence", "")),
         ))
+    log.info(f"LLM cross-check complete: {len(findings)} findings.")
+    for f in findings:
+        log.log_finding(f)
     return findings
+
+
+def _log_finding(self, finding: "Finding") -> None:
+    level = {"high": "error", "medium": "warning", "low": "info"}.get(
+        finding.severity, "info")
+    self.emit(level, f"[{finding.severity.upper()}] {finding.kind}: "
+                     f"{finding.description}")
+
+
+Logger.log_finding = _log_finding
 
 
 def check_pages(pages: list, client: LLMClient | None = None,
                 use_llm: bool = True,
-                progress=None,
+                logger: Logger | None = None,
                 cancel_event: threading.Event | None = None) -> CheckReport:
     """Run deterministic + (optional) LLM consistency checks over pages."""
+    log = logger or Logger()
+
     def check_cancel():
         if cancel_event is not None and cancel_event.is_set():
             from .gui import CancelledError
@@ -280,25 +316,49 @@ def check_pages(pages: list, client: LLMClient | None = None,
 
     report = CheckReport(pages_checked=len(pages), claims_extracted=0)
 
+    log.info(f"Deterministic checks over {len(pages)} pages…")
     all_dates: list = []
-    for page in pages:
+    for i, page in enumerate(pages):
         check_cancel()
-        all_dates.extend(extract_dates(page.markdown, page.url))
+        mentions = extract_dates(page.markdown, page.url)
+        all_dates.extend(mentions)
+        if mentions:
+            log.debug(f"  {page.url}: {len(mentions)} date mention(s): "
+                      + ", ".join(m.iso for m in mentions))
     report.date_mentions = all_dates
-    report.findings.extend(check_date_consistency(all_dates))
-    report.findings.extend(find_duplicate_content(pages))
+    log.info(f"Date extraction: {len(all_dates)} date mentions found across "
+             f"{len(pages)} pages.")
+
+    date_findings = check_date_consistency(all_dates, log)
+    report.findings.extend(date_findings)
+    log.info(f"Date consistency check: {len(date_findings)} finding(s).")
+
+    dup_findings = find_duplicate_content(pages, logger=log)
+    report.findings.extend(dup_findings)
+    log.info(f"Duplicate content check: {len(dup_findings)} finding(s).")
 
     if use_llm and client is not None and pages:
+        log.info(f"LLM checks enabled: provider={getattr(client, 'provider', 'llm')}, "
+                 f"model={getattr(client, 'model', 'default')}")
         claims_by_page = {}
         total = len(pages)
         for i, page in enumerate(pages):
             check_cancel()
-            claims_by_page[page.url] = extract_claims(client, page)
-            if progress and i % 2 == 0:
-                pct = 65 + int(25 * (i + 1) / max(1, total))
-                progress(f"Extracted claims from {i + 1}/{total} pages.", pct)
+            claims_by_page[page.url] = extract_claims(client, page, log)
+            log.info(f"Claims: {i + 1}/{total} pages processed "
+                     f"({page.url})")
         report.claims_extracted = sum(len(v) for v in claims_by_page.values())
+        log.info(f"Claim extraction complete: {report.claims_extracted} claims "
+                 f"from {total} pages.")
         check_cancel()
-        report.findings.extend(cross_check_claims(client, claims_by_page))
+        report.findings.extend(cross_check_claims(client, claims_by_page, log))
+    else:
+        log.info("LLM checks skipped (disabled or no client).")
 
+    high = sum(1 for f in report.findings if f.severity == "high")
+    medium = sum(1 for f in report.findings if f.severity == "medium")
+    low = sum(1 for f in report.findings if f.severity == "low")
+    log.info(f"Check complete: {len(report.findings)} findings "
+             f"({high} high, {medium} medium, {low} low). "
+             f"Overall: {'PASS' if report.ok else 'ISSUES FOUND'}.")
     return report

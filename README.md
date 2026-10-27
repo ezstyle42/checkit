@@ -35,19 +35,53 @@ python -m checkit --help # CLI
 
 Requires Python 3.9+. Runtime dependencies: `requests`, `beautifulsoup4`, `pywebview`.
 
-## API keys
+## Settings & API keys (persistent)
 
-Provide keys in any of these ways (checked in this order):
+The app **saves its settings** — last URL, output folder, crawl options, LLM
+provider/model, verbosity, and your **API keys** — to a per-user config file
+(`0600` permissions, never printed in full):
 
-1. The **API key field** in the GUI (or `--api-key` CLI flag)
-2. Environment variables: `MISTRAL_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
-3. A `checkit.env` file in the working directory:
+| OS | Settings file |
+| --- | --- |
+| Linux | `~/.config/checkit/settings.json` |
+| macOS | `~/Library/Application Support/checkit/settings.json` |
+| Windows | `%APPDATA%\checkit\settings.json` |
+
+Set `CHECKIT_SETTINGS=/path/to/file.json` to override the location.
+
+- **GUI**: settings load automatically on start; **💾 Save settings** persists
+  everything including keys (blank key fields keep the saved key; saved keys
+  are shown masked as `••••abcd`).
+- **CLI**: saved settings provide defaults for unset options.
+
+```bash
+checkit settings --show                          # view (keys masked)
+checkit settings --set provider=openai max_pages=50 verbose=true
+checkit settings --set api_keys='{"openai":"sk-..."}'
+checkit settings --path                          # print file location
+checkit run https://example.com --save-settings --provider openai --api-key sk-...
+```
+
+API keys are resolved in this order (highest priority first):
+
+1. GUI key field / `--api-key` flag
+2. `MISTRAL_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` env vars
+3. A `checkit.env` file in the working directory
+4. Saved settings file
 
 ```
 MISTRAL_API_KEY=...
 OPENAI_API_KEY=...
 ANTHROPIC_API_KEY=...
 ```
+
+## Verbosity
+
+Pass `--verbose` / `-v` (CLI) or tick **Verbose log** (GUI) to see everything
+the app is doing: every URL fetched with byte/link counts, redirects,
+robots.txt decisions, skipped external/non-HTML links, per-page distillation
+stats, extracted dates, every LLM call, and every finding as it is discovered.
+Without verbose mode you still get phase summaries and important warnings.
 
 ## CLI usage
 

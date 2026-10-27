@@ -60,8 +60,13 @@ def load_env_file(path="checkit.env") -> dict:
 
 
 def resolve_api_key(provider: str, explicit: str | None = None,
-                    env_file: str = "checkit.env") -> str:
-    """Resolve an API key for a provider from arg > env var > env file."""
+                    env_file: str = "checkit.env",
+                    settings=None) -> str:
+    """Resolve an API key for a provider.
+
+    Order: explicit argument > environment variable > checkit.env file >
+    saved GUI/CLI settings (checkit/settings.py).
+    """
     provider = provider.lower()
     if provider not in ENV_KEYS:
         raise ValueError(f"Unknown provider {provider!r}. Choose from {PROVIDERS}")
@@ -74,9 +79,22 @@ def resolve_api_key(provider: str, explicit: str | None = None,
     key = load_env_file(env_file).get(env_name)
     if key:
         return key
+    if settings is not None:
+        key = settings.api_key_for(provider)
+        if key:
+            return key
+    else:
+        # No explicit settings object: fall back to the saved settings file.
+        try:
+            from .settings import load_settings
+            key = load_settings().api_key_for(provider)
+            if key:
+                return key
+        except Exception:
+            pass
     raise KeyNotFoundError(
-        f"No API key for provider {provider!r}. Set ${env_name}, pass --api-key, "
-        f"or add {env_name}=... to {env_file}."
+        f"No API key for provider {provider!r}. Enter it in the GUI, set "
+        f"${env_name}, pass --api-key, or add {env_name}=... to {env_file}."
     )
 
 
@@ -93,11 +111,12 @@ class LLMClient:
 
     def __init__(self, provider: str, api_key: str | None = None,
                  model: str | None = None, env_file: str = "checkit.env",
-                 timeout: float = 120.0, poster=None):
+                 timeout: float = 120.0, poster=None, settings=None):
         self.provider = provider.lower()
         if self.provider not in PROVIDERS:
             raise ValueError(f"Unknown provider {self.provider!r}")
-        self.api_key = resolve_api_key(self.provider, api_key, env_file)
+        self.api_key = resolve_api_key(self.provider, api_key, env_file,
+                                       settings=settings)
         self.model = model or DEFAULT_MODELS[self.provider]
         self.timeout = timeout
         self._poster = poster or self._post

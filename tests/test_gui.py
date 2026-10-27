@@ -1,7 +1,7 @@
 """Headless tests for the GUI bridge and pipeline plumbing.
 
 pywebview itself is not imported here (it needs a display); we test the
-bridge logic and the GUI pipeline runner directly.
+bridge logic, settings persistence, and the GUI pipeline runner directly.
 """
 
 import http.server
@@ -10,6 +10,8 @@ import threading
 import pytest
 
 from checkit.gui import CancelledError, GuiBridge, run_pipeline_gui
+from checkit.logging_util import Logger
+from checkit.settings import Settings, load_settings, save_settings
 
 SITE = {
     "/": """
@@ -57,6 +59,12 @@ def server():
     httpd.shutdown()
 
 
+@pytest.fixture(autouse=True)
+def isolated_settings(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHECKIT_SETTINGS", str(tmp_path / "settings.json"))
+    return tmp_path / "settings.json"
+
+
 def make_config(server, tmp_path, **overrides):
     cfg = {
         "url": f"{server}/",
@@ -65,6 +73,7 @@ def make_config(server, tmp_path, **overrides):
         "delay": 0,
         "fmt": "markdown",
         "use_llm": False,
+        "verbose": True,
         "provider": "mistral",
         "model": None,
         "api_key": None,
@@ -76,9 +85,10 @@ def make_config(server, tmp_path, **overrides):
 class TestRunPipelineGui:
     def test_full_run_no_llm(self, server, tmp_path):
         events = []
+        logger = Logger(sink=events.append, verbose=True)
         result = run_pipeline_gui(
             make_config(server, tmp_path),
-            progress=lambda msg, pct=None: events.append((msg, pct)),
+            logger=logger,
             cancel=threading.Event(),
         )
         assert result["ok"] is True
@@ -86,15 +96,25 @@ class TestRunPipelineGui:
         assert result["overall_ok"] is True
         assert "report.md" in result["report_path"]
         assert "# CheckIt consistency report" in result["report_md"]
-        # progress events were emitted with increasing percentages
-        pcts = [p for _m, p in events if p is not None]
-        assert pcts and pcts[-1] == 100
-        assert pcts == sorted(pcts)
+        msgs = [e.message for e in events]
+        assert any("PHASE 1/3: CRAWL" in m for m in msgs)
+        assert any("PHASE 3/3: CONSISTENCY CHECK" in m for m in msgs)
+        assert any(m.startswith("DONE.") for m in msgs)
+
+    def test_verbose_log_narrates_crawl(self, server, tmp_path):
+        events = []
+        logger = Logger(sink=events.append, verbose=True)
+        run_pipeline_gui(make_config(server, tmp_path), logger,
+                         threading.Event())
+        msgs = [e.message for e in events]
+        assert any("Fetching" in m for m in msgs)
+        assert any("HTTP 200" in m for m in msgs)
+        assert any("Crawl finished:" in m for m in msgs)
 
     def test_report_written_to_disk(self, server, tmp_path):
         result = run_pipeline_gui(
             make_config(server, tmp_path),
-            progress=lambda *a: None,
+            logger=Logger(verbose=True),
             cancel=threading.Event(),
         )
         with open(result["report_path"], encoding="utf-8") as fh:
@@ -108,7 +128,7 @@ class TestRunPipelineGui:
         with pytest.raises(CancelledError):
             run_pipeline_gui(
                 make_config(server, tmp_path),
-                progress=lambda *a: None,
+                logger=Logger(verbose=True),
                 cancel=cancel,
             )
 
@@ -116,9 +136,15 @@ class TestRunPipelineGui:
         with pytest.raises(ValueError):
             run_pipeline_gui(
                 make_config("notaurl", tmp_path),
-                progress=lambda *a: None,
+                logger=Logger(verbose=True),
                 cancel=threading.Event(),
             )
+
+    def test_saved_api_key_is_used(self, server, tmp_path):
+        # Save a key for mistral, then verify resolution order finds it.
+        save_settings(Settings(api_keys={"mistral": "sk-saved-key"}))
+        loaded = load_settings()
+        assert loaded.api_key_for("mistral") == "sk-saved-key"
 
 
 class TestGuiBridge:
@@ -127,10 +153,17 @@ class TestGuiBridge:
         result = bridge.run(make_config(server, tmp_path))
         assert result["ok"] is True
         assert result["pages"] == 2
-        # events were queued for the frontend to poll
         events = bridge.poll_events()
         assert any(e["type"] == "done" for e in events)
         assert bridge.poll_events() == []  # queue drained
+
+    def test_run_logs_are_queued(self, server, tmp_path):
+        bridge = GuiBridge()
+        bridge.run(make_config(server, tmp_path))
+        events = bridge.poll_events()
+        log_events = [e for e in events if e["type"] == "log"]
+        assert log_events, "expected log events"
+        assert any("PHASE 1/3" in e["message"] for e in log_events)
 
     def test_run_error_is_returned_not_raised(self, tmp_path):
         bridge = GuiBridge()
@@ -141,8 +174,7 @@ class TestGuiBridge:
     def test_cancel_sets_event(self):
         bridge = GuiBridge()
         assert bridge.cancel() == {"cancelled": True}
-        events = bridge.poll_events()
-        assert events == []
+        assert bridge.poll_events() == []
 
     def test_providers_and_version(self):
         bridge = GuiBridge()
@@ -150,23 +182,59 @@ class TestGuiBridge:
         from checkit import __version__
         assert bridge.version() == __version__
 
+    def test_load_settings_masks_api_keys(self):
+        save_settings(Settings(
+            url="https://x.example", provider="openai",
+            api_keys={"openai": "sk-abcdef123456"},
+        ))
+        bridge = GuiBridge()
+        d = bridge.load_settings()
+        assert d["url"] == "https://x.example"
+        assert d["api_keys"]["openai"] == "••••3456"
+        assert d["api_keys"].get("mistral") in (None, "")
+        assert "settings_path" in d
+
+    def test_save_settings_persists_and_merges_keys(self):
+        save_settings(Settings(api_keys={"mistral": "sk-old-mistral-key"}))
+        bridge = GuiBridge()
+        res = bridge.save_settings({
+            "url": "https://new.example",
+            "out_dir": "out2",
+            "max_pages": 25,
+            "delay": 0.2,
+            "fmt": "xml",
+            "use_llm": True,
+            "verbose": True,
+            "provider": "claude",
+            "model": "",
+            "api_keys": {
+                "mistral": "",           # blank -> keep saved key
+                "openai": "sk-new-openai",  # new key -> overwrite
+                "claude": "••••" + "abcd",  # masked placeholder -> keep old (none)
+            },
+        })
+        assert res["saved"] is True
+        s = load_settings()
+        assert s.url == "https://new.example"
+        assert s.max_pages == 25
+        assert s.fmt == "xml"
+        assert s.verbose is True
+        assert s.api_key_for("mistral") == "sk-old-mistral-key"  # preserved
+        assert s.api_key_for("openai") == "sk-new-openai"        # updated
+        assert s.api_key_for("claude") is None                   # not saved from mask
+
     def test_double_run_rejected(self, server, tmp_path):
         bridge = GuiBridge()
-        # Simulate an in-progress run by starting a slow worker
-        started = threading.Event()
+        blocker = threading.Event()
 
-        def slow_progress(msg, pct=None):
-            started.set()
-            import time
-            time.sleep(0.5)
+        def slow_worker():
+            blocker.wait(5)
 
-        t = threading.Thread(
-            target=lambda: bridge.run(make_config(server, tmp_path)),
-            daemon=True,
-        )
-        # Force the "already running" path by marking the thread alive
-        bridge._thread = threading.Thread(target=lambda: started.wait(2))
+        bridge._thread = threading.Thread(target=slow_worker, daemon=True)
         bridge._thread.start()
-        result = bridge.run(make_config(server, tmp_path))
-        assert result == {"error": "A run is already in progress."}
-        bridge._thread.join()
+        try:
+            result = bridge.run(make_config(server, tmp_path))
+            assert result == {"error": "A run is already in progress."}
+        finally:
+            blocker.set()
+            bridge._thread.join()
