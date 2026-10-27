@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "checkit"
+version = "0.1.0"
+description = "Crawl a website, distill every page to LLM-optimized markdown/XML, and audit the content for internal consistency using Mistral, OpenAI or Claude."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "ezstyle42" }]
+dependencies = [
+    "requests>=2.31",
+    "beautifulsoup4>=4.12",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+checkit = "checkit.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["checkit*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
