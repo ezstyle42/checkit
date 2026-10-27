@@ -89,6 +89,18 @@ Exit code is `0` when no high-severity findings exist, `1` otherwise.
 - **Deterministic layer** (always on, no key needed): extracts every date mentioned on every page (ISO, day-first, and written-out formats), flags ambiguous date formats that parse differently, and detects near-duplicate pages.
 - **LLM layer** (with `--provider`): extracts checkable factual claims per page (dates, numbers, names, facts), then cross-references all claims across pages to find contradictions, date mismatches, number mismatches and factual errors. Findings are reported with severity, kind, involved pages and evidence quotes.
 
+## Releases
+
+Releases are automated via GitHub Actions:
+
+- Pushing to `main` or a `v*` tag triggers the **release build** workflow
+  (tests, sdist/wheel artifacts, GitHub release on tag push).
+- Publishing a GitHub release triggers the **PyPI publish** workflow
+  (tests, build, upload to PyPI via trusted publishing).
+
+See `.github/workflows/README.md` for the one-time PyPI trusted-publisher
+setup. After that, `pip install checkit` works for every release.
+
 ## Development
 
 ```bash
