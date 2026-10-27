@@ -60,21 +60,28 @@ jobs:
       - name: Build GUI executable
         run: pyinstaller packaging/checkit.spec --distpath dist-app --workpath build-app --noconfirm
 
-      - name: Package artifact
+      - name: Package artifact (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           mkdir -p artifacts
-          if [ -d dist-app/checkit.app ]; then
-            # macOS: zip the .app bundle
-            ditto -c -k --sequesterRsrc --keepParent dist-app/checkit.app "artifacts/checkit-${{ matrix.name }}.zip" 2>/dev/null || \
-              zip -r "artifacts/checkit-${{ matrix.name }}.zip" dist-app/checkit.app
-          elif [ -f dist-app/checkit.exe ]; then
-            # Windows: zip the onefile executable
-            zip -j "artifacts/checkit-${{ matrix.name }}.zip" dist-app/checkit.exe
-          else
-            # Linux: tar.gz the onefile executable
-            tar -czf "artifacts/checkit-${{ matrix.name }}.tar.gz" -C dist-app checkit
-          fi
+          tar -czf "artifacts/checkit-${{ matrix.name }}.tar.gz" -C dist-app checkit
+          ls -la artifacts/
+
+      - name: Package artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          Compress-Archive -Path dist-app\checkit.exe -DestinationPath "artifacts/checkit-${{ matrix.name }}.zip"
+          Get-ChildItem artifacts
+
+      - name: Package artifact (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          ditto -c -k --sequesterRsrc --keepParent dist-app/checkit.app "artifacts/checkit-${{ matrix.name }}.zip"
           ls -la artifacts/
 
       - name: Upload GUI artifact
