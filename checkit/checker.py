@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from difflib import SequenceMatcher
 
 from .distiller import DistilledPage
@@ -268,12 +269,20 @@ def cross_check_claims(client: LLMClient, claims_by_page: dict) -> list:
 
 
 def check_pages(pages: list, client: LLMClient | None = None,
-                use_llm: bool = True) -> CheckReport:
+                use_llm: bool = True,
+                progress=None,
+                cancel_event: threading.Event | None = None) -> CheckReport:
     """Run deterministic + (optional) LLM consistency checks over pages."""
+    def check_cancel():
+        if cancel_event is not None and cancel_event.is_set():
+            from .gui import CancelledError
+            raise CancelledError("cancelled by user")
+
     report = CheckReport(pages_checked=len(pages), claims_extracted=0)
 
     all_dates: list = []
     for page in pages:
+        check_cancel()
         all_dates.extend(extract_dates(page.markdown, page.url))
     report.date_mentions = all_dates
     report.findings.extend(check_date_consistency(all_dates))
@@ -281,9 +290,15 @@ def check_pages(pages: list, client: LLMClient | None = None,
 
     if use_llm and client is not None and pages:
         claims_by_page = {}
-        for page in pages:
+        total = len(pages)
+        for i, page in enumerate(pages):
+            check_cancel()
             claims_by_page[page.url] = extract_claims(client, page)
+            if progress and i % 2 == 0:
+                pct = 65 + int(25 * (i + 1) / max(1, total))
+                progress(f"Extracted claims from {i + 1}/{total} pages.", pct)
         report.claims_extracted = sum(len(v) for v in claims_by_page.values())
+        check_cancel()
         report.findings.extend(cross_check_claims(client, claims_by_page))
 
     return report

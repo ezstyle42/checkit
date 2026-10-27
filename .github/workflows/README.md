@@ -1,9 +1,18 @@
 # Workflows
 
 ## Release build (`release.yml`)
-Runs on pushes to `main` and on `v*` tag pushes. Runs the test suite, builds the
-sdist/wheel, uploads them as workflow artifacts, and creates a GitHub release
-with the artifacts attached (tag pushes only).
+Runs on pushes to `main` and on `v*` tag pushes. It:
+
+1. **test** — installs the package with test extras and runs the pytest suite,
+   then builds the sdist/wheel.
+2. **build-gui** — a matrix job over `ubuntu-latest`, `windows-latest` and
+   `macos-latest` that builds the **self-contained GUI application** with
+   PyInstaller (`packaging/checkit.spec`) and packages it:
+   - Linux: `checkit-linux-x64.tar.gz` (onefile binary)
+   - Windows: `checkit-windows-x64.zip` (onefile `checkit.exe`)
+   - macOS: `checkit-macos.zip` (`checkit.app` bundle)
+3. **release** (tag pushes only) — downloads all artifacts and creates a
+   GitHub release with the sdist/wheel and the three GUI apps attached.
 
 ## Publish to PyPI (`pypi-publish.yml`)
 Runs when a GitHub release is published (and via manual dispatch). Runs the

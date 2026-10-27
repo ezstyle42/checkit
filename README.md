@@ -1,28 +1,45 @@
 # checkit
 
-Crossplatform (Linux / Windows / macOS) command line tool that:
+Crossplatform (Linux / Windows / macOS) application — **GUI desktop app and CLI** — that:
 
 1. **Crawls** a website (same-domain, robots.txt-aware, polite rate limiting).
 2. **Distills** every page into a compact, LLM-optimized **markdown** or **XML** file (one file per page).
-3. **Checks** the site's content against itself: statements on different pages are compared for contradictions, dates mentioned across the site are extracted and cross-checked, and duplicates are flagged. A detailed markdown report is produced.
+3. **Checks** the site's content against itself: statements on different pages are compared for contradictions, dates mentioned across the site are extracted and cross-checked, and duplicates are flagged. A detailed report is produced.
 
 LLM-powered claim extraction and contradiction detection supports **Mistral**, **OpenAI** and **Claude (Anthropic)**. Deterministic checks (dates, duplicates) run without any API key.
 
-## Install
+## Download the app (no Python needed)
+
+Grab a **self-contained executable** for your OS from the
+[Releases page](https://github.com/ezstyle42/checkit/releases):
+
+| OS | File | How to run |
+| --- | --- | --- |
+| Linux | `checkit-linux-x64.tar.gz` | extract, then `./checkit` |
+| Windows | `checkit-windows-x64.zip` | extract, double-click `checkit.exe` |
+| macOS | `checkit-macos.zip` | extract, double-click `checkit.app` |
+
+The app bundles Python and all dependencies — nothing to install. The GUI
+lets you enter a URL, configure the crawl and LLM provider, watch live
+progress, cancel, and read the rendered report.
+
+## Install from source / PyPI
 
 ```bash
-pip install .
-# or run without installing:
-python -m checkit --help
+pip install .            # CLI + GUI (pywebview)
+checkit-gui              # launch the desktop app
+# or without installing:
+python -m checkit.gui    # GUI
+python -m checkit --help # CLI
 ```
 
-Requires Python 3.9+. Only runtime dependencies: `requests` and `beautifulsoup4`.
+Requires Python 3.9+. Runtime dependencies: `requests`, `beautifulsoup4`, `pywebview`.
 
 ## API keys
 
 Provide keys in any of these ways (checked in this order):
 
-1. `--api-key` CLI flag
+1. The **API key field** in the GUI (or `--api-key` CLI flag)
 2. Environment variables: `MISTRAL_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
 3. A `checkit.env` file in the working directory:
 
@@ -32,7 +49,7 @@ OPENAI_API_KEY=...
 ANTHROPIC_API_KEY=...
 ```
 
-## Usage
+## CLI usage
 
 Full pipeline (crawl + distill + check):
 
@@ -59,7 +76,7 @@ Distill a single HTML file:
 checkit distill page.html --url https://example.com/page --format xml
 ```
 
-### Options
+### CLI options
 
 | Option | Description |
 | --- | --- |
@@ -87,16 +104,29 @@ Exit code is `0` when no high-severity findings exist, `1` otherwise.
 ## How the check works
 
 - **Deterministic layer** (always on, no key needed): extracts every date mentioned on every page (ISO, day-first, and written-out formats), flags ambiguous date formats that parse differently, and detects near-duplicate pages.
-- **LLM layer** (with `--provider`): extracts checkable factual claims per page (dates, numbers, names, facts), then cross-references all claims across pages to find contradictions, date mismatches, number mismatches and factual errors. Findings are reported with severity, kind, involved pages and evidence quotes.
+- **LLM layer** (with a provider): extracts checkable factual claims per page (dates, numbers, names, facts), then cross-references all claims across pages to find contradictions, date mismatches, number mismatches and factual errors. Findings are reported with severity, kind, involved pages and evidence quotes.
+
+## Building the app yourself
+
+The self-contained executables are built with PyInstaller:
+
+```bash
+pip install -e ".[build]"   # installs pyinstaller
+pyinstaller packaging/checkit.spec --distpath dist-app --workpath build-app --noconfirm
+# -> dist-app/checkit (Linux/Windows) or dist-app/checkit.app (macOS)
+```
 
 ## Releases
 
 Releases are automated via GitHub Actions:
 
-- Pushing to `main` or a `v*` tag triggers the **release build** workflow
-  (tests, sdist/wheel artifacts, GitHub release on tag push).
-- Publishing a GitHub release triggers the **PyPI publish** workflow
-  (tests, build, upload to PyPI via trusted publishing).
+- Pushing to `main` or a `v*` tag triggers the **release build** workflow:
+  runs tests, builds the Python sdist/wheel, and builds the **GUI executables
+  for Linux, Windows and macOS** with PyInstaller.
+- On tag pushes, a GitHub release is created with the wheel/sdist **and** the
+  three GUI artifacts attached.
+- Publishing that release triggers the **PyPI publish** workflow (trusted
+  publishing, no token).
 
 See `.github/workflows/README.md` for the one-time PyPI trusted-publisher
 setup. After that, `pip install checkit` works for every release.

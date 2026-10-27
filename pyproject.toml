@@ -13,16 +13,29 @@ authors = [{ name = "ezstyle42" }]
 dependencies = [
     "requests>=2.31",
     "beautifulsoup4>=4.12",
+    "pywebview>=4.10",
 ]
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
+gui = ["pywebview>=4.10"]
+build = ["pyinstaller>=6.0"]
 
 [project.scripts]
 checkit = "checkit.cli:main"
+checkit-gui = "checkit.gui:main"
+
+[project.gui-scripts]
+checkit-gui = "checkit.gui:main"
+
+[tool.setuptools]
+include-package-data = true
 
 [tool.setuptools.packages.find]
 include = ["checkit*"]
+
+[tool.setuptools.package-data]
+checkit = ["gui_frontend/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -9,3 +9,6 @@ build/
 checkit-out/
 checkit.env
 .env
+dist-app/
+build-app/
+artifacts/

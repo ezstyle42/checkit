@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import re
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -103,10 +103,12 @@ def crawl(
     user_agent: str = DEFAULT_USER_AGENT,
     extra_seed_urls: Iterable[str] = (),
     session: requests.Session | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> list:
     """Breadth-first crawl of same-domain HTML pages.
 
-    Returns a list of CrawledPage in visit order.
+    Returns a list of CrawledPage in visit order. If `cancel_event` is set,
+    the crawl stops early and returns the pages gathered so far.
     """
     start_url = normalize_url(start_url)
     base = urlparse(start_url)
@@ -117,17 +119,19 @@ def crawl(
     sess.headers.update({"User-Agent": user_agent})
     robots = RobotsCache(sess, user_agent)
 
-    seen = {start_url}
-    for seed in extra_seed_urls:
-        seed = normalize_url(seed)
-        if is_same_domain(seed, base_netloc):
-            seen.add(seed)
+    seeds = [start_url] + [normalize_url(s) for s in extra_seed_urls]
+    seen = {s for s in seeds if is_same_domain(s, base_netloc)}
 
-    queue = deque([start_url] + [normalize_url(s) for s in extra_seed_urls])
+    queue = deque(seeds)
     pages: list = []
+
+    def cancelled() -> bool:
+        return cancel_event is not None and cancel_event.is_set()
 
     try:
         while queue and len(pages) < max_pages:
+            if cancelled():
+                break
             url = queue.popleft()
             if respect_robots and not robots.allows(url):
                 continue
@@ -159,8 +163,12 @@ def crawl(
                     continue
                 seen.add(link)
                 queue.append(link)
-            if queue and delay > 0:
-                time.sleep(delay)
+            if queue and delay > 0 and not cancelled():
+                # Sleep in small slices so cancellation stays responsive.
+                waited = 0.0
+                while waited < delay and not cancelled():
+                    time.sleep(min(0.1, delay - waited))
+                    waited += 0.1
     finally:
         if own:
             sess.close()
