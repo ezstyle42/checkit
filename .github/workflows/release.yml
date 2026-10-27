@@ -103,20 +103,43 @@ jobs:
         run: echo "result=success" >> "$GITHUB_OUTPUT"
 
     outputs:
-      linux: ${{ matrix.key == 'linux' && steps.result.outputs.result || 'skipped' }}
-      windows: ${{ matrix.key == 'windows' && steps.result.outputs.result || 'skipped' }}
-      macos: ${{ matrix.key == 'macos' && steps.result.outputs.result || 'skipped' }}
+      # Each matrix job sets exactly one output (its own); the others are unset.
+      # GitHub merges matrix outputs by name, so the linux job's "linux" output
+      # and the windows job's "windows" output coexist without clobbering.
+      result: ${{ steps.result.outputs.result }}
+
+  check-builds:
+    # Aggregate the per-OS matrix results into a single gate. The release job
+    # depends on this, so it can use a simple boolean check.
+    needs: [test, build-gui]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    outputs:
+      ok: ${{ steps.gate.outputs.ok }}
+    steps:
+      - name: Gate release on required builds
+        id: gate
+        shell: bash
+        run: |
+          # The matrix job result is 'success' when all non-continue-on-error
+          # jobs succeeded. macOS has continue-on-error, so its failure does
+          # not affect the matrix result.
+          if [ "${{ needs.test.result }}" = "success" ] && \
+             [ "${{ needs.build-gui.result }}" = "success" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "test=${{ needs.test.result }} build-gui=${{ needs.build-gui.result }}"
 
   release:
-    # build-gui has continue-on-error for macOS; a macOS runner outage must
-    # not block the release. The `if` checks the individual matrix results:
-    # test must pass and the Linux + Windows builds must succeed.
-    needs: [test, build-gui]
+    # Gate on test + build-gui matrix result. macOS has continue-on-error in
+    # the matrix, so a macOS runner outage does not fail the matrix result and
+    # does not block the release.
+    needs: [test, build-gui, check-builds]
     if: |
       startsWith(github.ref, 'refs/tags/') &&
-      needs.test.result == 'success' &&
-      needs.build-gui.outputs.linux == 'success' &&
-      needs.build-gui.outputs.windows == 'success'
+      needs.check-builds.outputs.ok == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
